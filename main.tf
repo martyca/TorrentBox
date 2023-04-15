@@ -40,7 +40,9 @@ data "local_file" "rsa" { # get local rsa public key for temporary keypair
 }
 
 resource "aws_vpc" "torrentbox" {
-  cidr_block = local.cidr_block
+  cidr_block           = local.cidr_block
+  enable_dns_hostnames = true
+
   tags = {
     Name = "torrentbox"
   }
@@ -86,8 +88,8 @@ resource "aws_security_group" "torrentbox" {
   vpc_id = aws_vpc.torrentbox.id
 
   ingress {
-    from_port   = 9091
-    to_port     = 9091
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["${local.ip}/32"]
   }
@@ -155,7 +157,7 @@ yum install docker -y
 usermod -a -G docker ec2-user
 systemctl enable docker
 systemctl start docker
-docker run -d --name=transmission -e PUID=1000 -e PGID=1000 -e TZ=Pacific/Auckland -p 9091:9091 -p 51413:51413 -p 51413:51413/udp -v /downloads:/downloads --restart unless-stopped lscr.io/linuxserver/transmission:latest
+docker run -d --name=transmission -e PUID=1000 -e PGID=1000 -e TZ=Pacific/Auckland -p 80:9091 -p 51413:51413 -p 51413:51413/udp -v /downloads:/downloads --restart unless-stopped lscr.io/linuxserver/transmission:latest
 nohup bash -c 'while true; do aws s3 sync /downloads/complete/ s3://${aws_s3_bucket.torrentbox.id}; sleep 5; done' &
 EOF
   tags = {
@@ -185,9 +187,9 @@ resource "aws_iam_role" "torrentbox_role" { # iam role for copying to s3
       Version = "2012-10-17"
       Statement = [
         {
-          Sid      = ""
-          Effect   = "Allow"
-          Action   = [
+          Sid    = ""
+          Effect = "Allow"
+          Action = [
             "s3:PutObject",
             "s3:GetObject",
             "s3:ListBucket"
@@ -216,7 +218,7 @@ output "Warning" {
 }
 
 output "torrentbox_url" {
-  value = "http://${aws_instance.torrentbox.public_ip}:9091"
+  value = "http://${aws_instance.torrentbox.public_dns}"
 }
 
 output "bucket_url" {
